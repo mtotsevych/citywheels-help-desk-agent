@@ -121,7 +121,7 @@ The checks (`eval/checks.py`) look at:
 - the language of the answer (English unless the question says otherwise), found by counting common English, Polish and German words;
 - whether a refusal gives the staff email or phone.
 
-Checks like these are simple to read but can be fooled, so the report also shows every answer and tool call, and I read them.
+Checks like these are simple to read but can be fooled, so the report also shows every answer and tool call. The first run below shows why reading them matters.
 
 `python -m eval.run_eval` runs every question in a fresh conversation, waits 5 seconds between questions because of the free tier's per-minute limit, and writes [`eval/results.md`](eval/results.md) with the score, the code version (git commit), and the number of model calls, retries and the time per question. `--model` and `--output` make it easy to compare two models.
 
@@ -142,9 +142,12 @@ What I changed:
 - Stricter checks that catch each of these problems: the language of the answer, "booking fee stated as 0", contact details in refusals, no winter hours for a Saturday in June, and the 48-hour and 24-hour rules named in the two limit cases. With them, the first run scores **9 of 16**, and every failure is one of the problems above.
 - The client does its own retries, waits as long as Gemini asks, and counts model calls and retries for the report, so a slow run can be explained.
 
-**Second run**, after these changes ([`eval/results.md`](eval/results.md)):
+**Second run**, after these changes ([`eval/results.md`](eval/results.md), code version `38eb493`): **15 of 16** passed.
 
-> **TODO before sending:** fill in after the second run.
+- None of the first run's problems came back in this run: the booking fee is right in every refund answer, every answer is in the customer's language, the refusals are proper sentences with the contact details, the opening hours are the June ones, and there is no Markdown.
+- The run took 1.2 minutes for 34 model calls. The two questions that needed a retry after a rate limit took 28.5 and 21.0 seconds, all the others 0.6 to 2.8 seconds. The first report did not count retries, so the reason for its 15 minutes can only be guessed; rate limiting with waits that were too short is the most likely one.
+- **The failure, `storm-warning`:** the model did not search the policies. It called `get_booking` and `calculate_refund` and answered "If you cancel now, you will get a partial refund instead of a full refund", which contradicts the bad-weather rule: a full refund is possible, and the staff decide. In the first run the same question was searched and the answer said that the staff decide. My reading of the cause: the new rule 4 and the refund summary present `calculate_refund` as the whole answer to a refund question, so the model took the storm question for an ordinary one. I have not fixed it yet. The fix I would try: say in rule 4 and in the summary that `calculate_refund` knows only the standard rules, and that special cases such as bad weather are in the policies and decided by the staff. Then run the evaluation several times, because one run per question cannot show whether a fix holds.
+- Two things the checks do not catch: the in-progress answer copies the internal status name `'in_progress'` from the summary, which a customer should not see, and the age answer gives the rule ("from 16 years old") without saying "no" outright or suggesting a city bike, as the first run's answer did.
 
 ## How I used AI coding assistants
 
@@ -171,6 +174,7 @@ Places where its output was wrong or needed a change, and how that came out:
 
 ## What I would do next
 
+- Fix the storm-warning failure as described under Results, and use plain words instead of status names in the refund summary.
 - Run each evaluation question several times and report pass rates instead of one pass/fail, and compare two models (the runner already supports it).
 - Add an LLM-as-judge check of answer quality on top of the string checks, validated on a few answers checked by hand.
 - Add a `quote_price` tool, so rental prices ("two e-bikes for 3 hours") are also calculated by code, like refunds.

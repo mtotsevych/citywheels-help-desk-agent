@@ -1,0 +1,11 @@
+# Client for OpenAI-compatible APIs (used with the Gemini API by default)
+openai>=2.0,<4
+# Reads .env into environment variables
+python-dotenv>=1.0
+# English stemmer for the policy search ("cancelled" -> "cancel")
+snowballstemmer>=2.2
+# Time zone data for zoneinfo, needed on Windows
+tzdata
+
+# Tests
+pytest>=8

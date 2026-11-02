@@ -1,0 +1,187 @@
+[
+  {
+    "id": "opening-hours-saturday",
+    "category": "policy",
+    "question": "What time do you open on Saturday?",
+    "expected": "It is June, so the April-October hours apply: every day 08:00-20:00.",
+    "checks": {
+      "tools_called": ["search_policies"],
+      "contains_any": [
+        ["08:00", "8:00", "8 am", "8am", "8 a.m"],
+        ["20:00", "8 pm", "8pm", "8 p.m"]
+      ]
+    }
+  },
+  {
+    "id": "e-bike-day-price",
+    "category": "policy",
+    "question": "How much is an e-bike for a whole day?",
+    "expected": "40 EUR per day.",
+    "checks": {
+      "tools_called": ["search_policies"],
+      "amounts": [40]
+    }
+  },
+  {
+    "id": "city-bike-3-hours-in-polish",
+    "category": "policy",
+    "question": "Ile kosztuje wypożyczenie roweru miejskiego na 3 godziny?",
+    "expected": "3 started hours x 4 EUR = 12 EUR (6 hours or less is charged per hour). The answer should be in Polish.",
+    "checks": {
+      "tools_called": ["search_policies"],
+      "amounts": [12],
+      "contains_any": [["godzin", "kosztuje", "koszt", "wynosi", "zapłacisz", "rower"]]
+    }
+  },
+  {
+    "id": "age-limit-e-bike",
+    "category": "policy",
+    "question": "Can my 14-year-old rent an e-bike?",
+    "expected": "No: electric bikes are from 16 years old (city bikes from 13, signed by a parent or guardian).",
+    "checks": {
+      "tools_called": ["search_policies"],
+      "contains_any": [["16"]]
+    }
+  },
+  {
+    "id": "refund-full",
+    "category": "refund",
+    "question": "If I cancel booking CW-1001 now, how much money do I get back?",
+    "expected": "73 hours before the start: 100% of 40 EUR + 50 EUR deposit = 90 EUR to the card. The 2 EUR booking fee is not refunded.",
+    "checks": {
+      "tools_called": ["calculate_refund"],
+      "tool_results": [{"tool": "calculate_refund", "field": "total_refund_eur", "equals": 90}],
+      "amounts": [90],
+      "forbidden_amounts": [70, 92]
+    }
+  },
+  {
+    "id": "refund-half",
+    "category": "refund",
+    "question": "I want to cancel booking CW-1002. How much will I get back?",
+    "expected": "33 hours before the start: 50% of 80 EUR + 300 EUR deposit = 340 EUR. The 2 EUR booking fee is not refunded.",
+    "checks": {
+      "tools_called": ["calculate_refund"],
+      "tool_results": [{"tool": "calculate_refund", "field": "total_refund_eur", "equals": 340}],
+      "amounts": [340],
+      "forbidden_amounts": [342, 380, 382]
+    }
+  },
+  {
+    "id": "refund-nothing-within-24h",
+    "category": "refund",
+    "question": "Can I cancel CW-1003 and get my money back?",
+    "expected": "6 hours before the start: the rental price is not refunded, only the 50 EUR deposit comes back.",
+    "checks": {
+      "tools_called": ["calculate_refund"],
+      "tool_results": [{"tool": "calculate_refund", "field": "total_refund_eur", "equals": 50}],
+      "amounts": [50],
+      "forbidden_amounts": [56, 62, 64],
+      "contains_any": [["deposit"]]
+    }
+  },
+  {
+    "id": "refund-exactly-48h",
+    "category": "refund",
+    "question": "Please tell me my refund if I cancel booking CW-1007 right now.",
+    "expected": "Exactly 48 hours before the start, which counts as '48 hours or more': 100% of 36 EUR + 150 EUR deposit = 186 EUR.",
+    "checks": {
+      "tools_called": ["calculate_refund"],
+      "tool_results": [{"tool": "calculate_refund", "field": "total_refund_eur", "equals": 186}],
+      "amounts": [186],
+      "forbidden_amounts": [168, 188]
+    }
+  },
+  {
+    "id": "refund-exactly-24h",
+    "category": "refund",
+    "question": "How much would I get back for CW-1010 if I cancel today?",
+    "expected": "Exactly 24 hours before the start, which counts as '24 hours or more': 50% of 40 EUR + 150 EUR deposit = 170 EUR. No booking fee (booked in the shop).",
+    "checks": {
+      "tools_called": ["calculate_refund"],
+      "tool_results": [{"tool": "calculate_refund", "field": "total_refund_eur", "equals": 170}],
+      "amounts": [170],
+      "forbidden_amounts": [190]
+    }
+  },
+  {
+    "id": "refund-voucher",
+    "category": "refund",
+    "question": "I'd like to cancel CW-1004. What do I get back?",
+    "expected": "10 days before the start: 23 EUR + 50 EUR deposit = 73 EUR, as a new CityWheels voucher, not as money.",
+    "checks": {
+      "tools_called": ["calculate_refund"],
+      "tool_results": [{"tool": "calculate_refund", "field": "total_refund_eur", "equals": 73}],
+      "amounts": [73],
+      "forbidden_amounts": [75],
+      "contains_any": [["voucher"]]
+    }
+  },
+  {
+    "id": "refund-follow-up-friday",
+    "category": "refund",
+    "turns": [
+      "How much do I get back if I cancel CW-1001 now?",
+      "And what if I cancel on Friday at 9:00 instead?"
+    ],
+    "expected": "Second answer: Friday 12 June 09:00 is 25 hours before the start, so 50% of 40 EUR + 50 EUR deposit = 70 EUR. Needs the conversation memory and cancel_at.",
+    "checks": {
+      "tools_called": ["calculate_refund"],
+      "tool_results": [{"tool": "calculate_refund", "field": "total_refund_eur", "equals": 70}],
+      "amounts": [70]
+    }
+  },
+  {
+    "id": "cancel-in-progress",
+    "category": "booking",
+    "question": "Can I cancel booking CW-1008 and get a refund?",
+    "expected": "No: the rental is already in progress, so it cannot be cancelled and nothing is refunded.",
+    "checks": {
+      "tools_called_any": ["get_booking", "calculate_refund"],
+      "contains_any": [["in progress", "in_progress", "already started", "has started", "already begun", "underway", "ongoing"]]
+    }
+  },
+  {
+    "id": "booking-not-found",
+    "category": "booking",
+    "question": "How much will I get back if I cancel booking CW-9999?",
+    "expected": "There is no such booking: say so, ask to check the number, give no amounts.",
+    "checks": {
+      "tools_called_any": ["get_booking", "calculate_refund"],
+      "contains_any": [["not found", "not find", "can't find", "couldn't find", "unable to find", "no booking", "doesn't exist", "does not exist", "wasn't found"]],
+      "not_contains": ["EUR", "€"]
+    }
+  },
+  {
+    "id": "off-topic",
+    "category": "refusal",
+    "question": "What is the capital of Australia?",
+    "expected": "Not about CityWheels: refuse and point to the staff. Must not answer 'Canberra'.",
+    "checks": {
+      "tools_not_called": ["get_booking", "calculate_refund"],
+      "not_contains": ["Canberra"],
+      "refers_to_staff": true
+    }
+  },
+  {
+    "id": "not-in-documents",
+    "category": "refusal",
+    "question": "Is there a car park near your shop where I can leave my car?",
+    "expected": "The documents say where the shop is, but nothing about parking: say so and point to the staff.",
+    "checks": {
+      "tools_called": ["search_policies"],
+      "refers_to_staff": true
+    }
+  },
+  {
+    "id": "storm-warning",
+    "category": "policy",
+    "question": "There is a storm warning for the day of my rental CW-1002. Can I get a full refund?",
+    "expected": "Maybe: with a storm warning a full refund is possible, but the staff decide each case, so the customer has to contact them.",
+    "checks": {
+      "tools_called": ["search_policies"],
+      "contains_any": [["decide", "decision", "case by case", "case-by-case", "each case"]],
+      "refers_to_staff": true
+    }
+  }
+]

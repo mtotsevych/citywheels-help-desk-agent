@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 from helpdesk.agent import ToolCallRecord
 
-STAFF_HINTS = ("help@citywheels.example", "+48 000 000 000", "staff")
+STAFF_CONTACT = ("help@citywheels.example", "+48 000 000 000")
 KNOWN_CHECKS = {
     "tools_called",
     "tools_called_any",
@@ -22,11 +22,24 @@ KNOWN_CHECKS = {
     "forbidden_amounts",
     "contains_any",
     "not_contains",
-    "refers_to_staff",
+    "forbidden_patterns",
+    "gives_staff_contact",
 }
 
 # A number such as 340, 340.00 or 340,00 that is not part of a longer number and not a percentage.
 _NUMBER = re.compile(r"(?<![\d.,])\d+(?:[.,]\d+)?(?![\d%])(?!\s*%)")
+
+# Short, very common words: enough to tell the few languages customers might use apart.
+_COMMON_WORDS = {
+    "en": set(
+        "the a an and or to of in on for at by from with you your is are be will can it this that not if".split()
+    ),
+    "pl": set("i w na z za do nie się jest są że to o od po oraz lub czy jak dla przy już tak będzie".split()),
+    "de": set(
+        "der die das und oder ist sind sie ihre nicht wird werden von mit zu den dem ein eine für auf im".split()
+    ),
+}
+LANGUAGE_NAMES = {"en": "English", "pl": "Polish", "de": "German"}
 
 
 @dataclass
@@ -44,11 +57,25 @@ def mentions_amount(text: str, amount: float) -> bool:
     return any(abs(number - amount) < 0.005 for number in numbers_in(text))
 
 
-def run_checks(checks: dict, answer: str, tool_calls: list[ToolCallRecord]) -> list[Check]:
+def detect_language(text: str) -> str:
+    """The language whose common words appear most often in `text` (English on a tie)."""
+    words = re.findall(r"[^\W\d_]+", text.lower())
+    scores = {language: sum(word in common for word in words) for language, common in _COMMON_WORDS.items()}
+    return max(scores, key=scores.get)
+
+
+def run_checks(checks: dict, answer: str, tool_calls: list[ToolCallRecord], language: str = "en") -> list[Check]:
     called = [call.name for call in tool_calls]
     called_text = ", ".join(called) or "no tools"
     lower = answer.lower()
     results: list[Check] = []
+
+    detected = detect_language(answer)
+    results.append(
+        Check(
+            f"answer is in {LANGUAGE_NAMES[language]}", detected == language, f"looks like {LANGUAGE_NAMES[detected]}"
+        )
+    )
 
     for tool in checks.get("tools_called", []):
         results.append(Check(f"calls {tool}", tool in called, f"called: {called_text}"))
@@ -86,7 +113,17 @@ def run_checks(checks: dict, answer: str, tool_calls: list[ToolCallRecord]) -> l
     for phrase in checks.get("not_contains", []):
         results.append(Check(f"answer does not contain {phrase}", phrase.lower() not in lower))
 
-    if checks.get("refers_to_staff"):
-        results.append(Check("answer refers to the staff", any(hint in lower for hint in STAFF_HINTS)))
+    for forbidden in checks.get("forbidden_patterns", []):
+        match = re.search(forbidden["pattern"], answer, re.IGNORECASE)
+        results.append(
+            Check(
+                f"answer avoids: {forbidden['description']}",
+                match is None,
+                f"found: {match.group()!r}" if match else "",
+            )
+        )
+
+    if checks.get("gives_staff_contact"):
+        results.append(Check("answer gives the staff email or phone", any(c in lower for c in STAFF_CONTACT)))
 
     return results

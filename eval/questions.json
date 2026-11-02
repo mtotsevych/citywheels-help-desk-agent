@@ -3,13 +3,14 @@
     "id": "opening-hours-saturday",
     "category": "policy",
     "question": "What time do you open on Saturday?",
-    "expected": "It is June, so the April-October hours apply: every day 08:00-20:00.",
+    "expected": "It is June, so the April-October hours apply: every day 08:00-20:00. The winter hours do not apply.",
     "checks": {
       "tools_called": ["search_policies"],
       "contains_any": [
         ["08:00", "8:00", "8 am", "8am", "8 a.m"],
         ["20:00", "8 pm", "8pm", "8 p.m"]
-      ]
+      ],
+      "not_contains": ["17:00"]
     }
   },
   {
@@ -25,12 +26,12 @@
   {
     "id": "city-bike-3-hours-in-polish",
     "category": "policy",
+    "language": "pl",
     "question": "Ile kosztuje wypożyczenie roweru miejskiego na 3 godziny?",
     "expected": "3 started hours x 4 EUR = 12 EUR (6 hours or less is charged per hour). The answer should be in Polish.",
     "checks": {
       "tools_called": ["search_policies"],
-      "amounts": [12],
-      "contains_any": [["godzin", "kosztuje", "koszt", "wynosi", "zapłacisz", "rower"]]
+      "amounts": [12]
     }
   },
   {
@@ -52,7 +53,8 @@
       "tools_called": ["calculate_refund"],
       "tool_results": [{"tool": "calculate_refund", "field": "total_refund_eur", "equals": 90}],
       "amounts": [90],
-      "forbidden_amounts": [70, 92]
+      "forbidden_amounts": [70, 92],
+      "forbidden_patterns": [{"pattern": "booking fee[^\\n.]{0,40}?\\b0(?:[.,]00)?\\b", "description": "booking fee stated as 0"}]
     }
   },
   {
@@ -64,7 +66,8 @@
       "tools_called": ["calculate_refund"],
       "tool_results": [{"tool": "calculate_refund", "field": "total_refund_eur", "equals": 340}],
       "amounts": [340],
-      "forbidden_amounts": [342, 380, 382]
+      "forbidden_amounts": [342, 380, 382],
+      "forbidden_patterns": [{"pattern": "booking fee[^\\n.]{0,40}?\\b0(?:[.,]00)?\\b", "description": "booking fee stated as 0"}]
     }
   },
   {
@@ -77,44 +80,49 @@
       "tool_results": [{"tool": "calculate_refund", "field": "total_refund_eur", "equals": 50}],
       "amounts": [50],
       "forbidden_amounts": [56, 62, 64],
-      "contains_any": [["deposit"]]
+      "contains_any": [["deposit"]],
+      "forbidden_patterns": [{"pattern": "booking fee[^\\n.]{0,40}?\\b0(?:[.,]00)?\\b", "description": "booking fee stated as 0"}]
     }
   },
   {
     "id": "refund-exactly-48h",
     "category": "refund",
     "question": "Please tell me my refund if I cancel booking CW-1007 right now.",
-    "expected": "Exactly 48 hours before the start, which counts as '48 hours or more': 100% of 36 EUR + 150 EUR deposit = 186 EUR.",
+    "expected": "Exactly 48 hours before the start, which counts as '48 hours or more': 100% of 36 EUR + 150 EUR deposit = 186 EUR. The explanation must name the 48-hour rule.",
     "checks": {
       "tools_called": ["calculate_refund"],
       "tool_results": [{"tool": "calculate_refund", "field": "total_refund_eur", "equals": 186}],
       "amounts": [186],
-      "forbidden_amounts": [168, 188]
+      "forbidden_amounts": [168, 188],
+      "contains_any": [["48 hours", "48-hour", "48 h"]],
+      "forbidden_patterns": [{"pattern": "booking fee[^\\n.]{0,40}?\\b0(?:[.,]00)?\\b", "description": "booking fee stated as 0"}]
     }
   },
   {
     "id": "refund-exactly-24h",
     "category": "refund",
     "question": "How much would I get back for CW-1010 if I cancel today?",
-    "expected": "Exactly 24 hours before the start, which counts as '24 hours or more': 50% of 40 EUR + 150 EUR deposit = 170 EUR. No booking fee (booked in the shop).",
+    "expected": "Exactly 24 hours before the start, which counts as '24 hours or more': 50% of 40 EUR + 150 EUR deposit = 170 EUR. No booking fee (booked in the shop). The explanation must name the 24-hour rule.",
     "checks": {
       "tools_called": ["calculate_refund"],
       "tool_results": [{"tool": "calculate_refund", "field": "total_refund_eur", "equals": 170}],
       "amounts": [170],
-      "forbidden_amounts": [190]
+      "forbidden_amounts": [190],
+      "contains_any": [["24 hours", "24-hour", "24 h", "24 and 48 hours"]]
     }
   },
   {
     "id": "refund-voucher",
     "category": "refund",
     "question": "I'd like to cancel CW-1004. What do I get back?",
-    "expected": "10 days before the start: 23 EUR + 50 EUR deposit = 73 EUR, as a new CityWheels voucher, not as money.",
+    "expected": "10 days before the start: 23 EUR + 50 EUR deposit = 73 EUR, as a new CityWheels voucher, not as money. The 2 EUR booking fee is not refunded.",
     "checks": {
       "tools_called": ["calculate_refund"],
       "tool_results": [{"tool": "calculate_refund", "field": "total_refund_eur", "equals": 73}],
       "amounts": [73],
       "forbidden_amounts": [75],
-      "contains_any": [["voucher"]]
+      "contains_any": [["voucher"]],
+      "forbidden_patterns": [{"pattern": "booking fee[^\\n.]{0,40}?\\b0(?:[.,]00)?\\b", "description": "booking fee stated as 0"}]
     }
   },
   {
@@ -128,7 +136,8 @@
     "checks": {
       "tools_called": ["calculate_refund"],
       "tool_results": [{"tool": "calculate_refund", "field": "total_refund_eur", "equals": 70}],
-      "amounts": [70]
+      "amounts": [70],
+      "forbidden_patterns": [{"pattern": "booking fee[^\\n.]{0,40}?\\b0(?:[.,]00)?\\b", "description": "booking fee stated as 0"}]
     }
   },
   {
@@ -156,21 +165,22 @@
     "id": "off-topic",
     "category": "refusal",
     "question": "What is the capital of Australia?",
-    "expected": "Not about CityWheels: refuse and point to the staff. Must not answer 'Canberra'.",
+    "expected": "Not about CityWheels: say so politely and give the staff contact details. Must not answer 'Canberra'.",
     "checks": {
       "tools_not_called": ["get_booking", "calculate_refund"],
-      "not_contains": ["Canberra"],
-      "refers_to_staff": true
+      "not_contains": ["Canberra", "the customer"],
+      "gives_staff_contact": true
     }
   },
   {
     "id": "not-in-documents",
     "category": "refusal",
     "question": "Is there a car park near your shop where I can leave my car?",
-    "expected": "The documents say where the shop is, but nothing about parking: say so and point to the staff.",
+    "expected": "The documents say where the shop is, but nothing about parking: say so and give the staff contact details.",
     "checks": {
       "tools_called": ["search_policies"],
-      "refers_to_staff": true
+      "not_contains": ["the customer"],
+      "gives_staff_contact": true
     }
   },
   {
@@ -181,7 +191,8 @@
     "checks": {
       "tools_called": ["search_policies"],
       "contains_any": [["decide", "decision", "case by case", "case-by-case", "each case"]],
-      "refers_to_staff": true
+      "forbidden_patterns": [{"pattern": "booking fee[^\\n.]{0,40}?\\b0(?:[.,]00)?\\b", "description": "booking fee stated as 0"}],
+      "gives_staff_contact": true
     }
   }
 ]

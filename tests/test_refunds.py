@@ -52,8 +52,9 @@ def test_rental_refund_depends_on_notice(notice, percent, rental_refund):
 @pytest.mark.parametrize("notice", [timedelta(days=3), timedelta(hours=30), timedelta(hours=1)])
 def test_booking_fee_is_never_refunded(notice):
     result = compute_refund(booking(), START - notice)
-    assert result["booking_fee_refund_eur"] == 0.0
+    assert result["booking_fee_refunded"] is False
     assert result["total_refund_eur"] == result["rental_refund_eur"] + result["deposit_refund_eur"]
+    assert "Booking fee: 2.00 EUR, not refunded." in result["summary"]
 
 
 # Rule: the deposit is always refunded in full when a booking is cancelled.
@@ -69,7 +70,7 @@ def test_only_confirmed_bookings_can_be_cancelled(status):
     result = compute_refund(booking(status=status), START - timedelta(days=5))
     assert result["can_cancel"] is False
     assert result["total_refund_eur"] == 0.0
-    assert "cannot be cancelled" in result["reason"]
+    assert "cannot be cancelled" in result["summary"]
     assert "rental_refund_eur" not in result
 
 
@@ -98,9 +99,33 @@ def test_half_refund_is_rounded_to_cents():
     assert result["rental_refund_eur"] == 6.18  # 6.175 rounded half up
 
 
-def test_not_refunded_part_is_the_rest_of_the_rental_plus_the_fee():
+# The summary is what the model passes on to the customer, so it must state every amount correctly.
+def test_summary_states_every_amount_and_the_rule():
     result = compute_refund(booking(), START - timedelta(hours=30))
-    assert result["not_refunded_eur"] == 20.0 + 2.0
+    assert result["summary"] == (
+        "Total refund: 70.00 EUR. "
+        "Rental price: 20.00 EUR of 40.00 EUR back (50%: cancelled 30 hours before the start, "
+        "which is less than 48 hours but 24 hours or more). "
+        "Deposit: 50.00 EUR back in full. "
+        "Booking fee: 2.00 EUR, not refunded. "
+        "Refunded to the same card within 5 working days."
+    )
+
+
+def test_summary_at_exactly_48_hours_names_the_48_hour_rule():
+    summary = compute_refund(booking(), START - timedelta(hours=48))["summary"]
+    assert "(100%: cancelled 48 hours before the start, which is 48 hours or more)" in summary
+
+
+def test_summary_without_booking_fee_says_so():
+    summary = compute_refund(booking(booking_fee_eur=0.0), START - timedelta(days=3))["summary"]
+    assert "No booking fee was paid." in summary
+    assert "Booking fee:" not in summary
+
+
+def test_summary_for_an_in_progress_booking_explains_the_deposit():
+    summary = compute_refund(booking(status="in_progress"), START - timedelta(days=3))["summary"]
+    assert "returned in full when the bike comes back on time" in summary
 
 
 # The example bookings in data/bookings.json, cancelled at the fixed "now" (2026-06-10 09:00).

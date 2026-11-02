@@ -6,7 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
-from helpdesk.llm import LLMError, OpenAICompatibleModel
+from helpdesk.llm import LLMError, OpenAICompatibleModel, retry_delay
 
 
 class FakeAPI:
@@ -44,7 +44,6 @@ def make_model():
         api = FakeAPI(responses)
         servers.append(api.server)
         model = OpenAICompatibleModel(model="test-model", api_key="test-key", base_url=api.url, **kwargs)
-        model.client = model.client.with_options(max_retries=0)  # keep tests fast
         return model, api
 
     yield make
@@ -121,16 +120,89 @@ def test_rejected_api_key_gives_a_clear_error(make_model):
         model.complete([{"role": "user", "content": "x"}], tools=[])
 
 
-def test_per_minute_rate_limit_is_retried(make_model):
+OK = (200, completion({"role": "assistant", "content": "OK"}))
+
+
+def test_per_minute_rate_limit_is_retried_and_counted(make_model):
     limited = (429, {"error": {"message": "Too many requests per minute"}})
-    model, api = make_model([limited, (200, completion({"role": "assistant", "content": "OK"}))], rate_limit_wait=0)
+    model, api = make_model([limited, OK], retry_wait=0)
     assert model.complete([{"role": "user", "content": "x"}], tools=[]).content == "OK"
     assert len(api.requests) == 2
+    assert (model.stats.calls, model.stats.retries) == (1, 1)
+
+
+def test_overloaded_server_is_retried(make_model):
+    overloaded = (503, {"error": {"code": 503, "message": "The model is overloaded.", "status": "UNAVAILABLE"}})
+    model, api = make_model([overloaded, overloaded, OK], retry_wait=0)
+    assert model.complete([{"role": "user", "content": "x"}], tools=[]).content == "OK"
+    assert model.stats.retries == 2
+
+
+def test_gives_up_after_the_last_retry(make_model):
+    overloaded = (503, {"error": {"message": "The model is overloaded."}})
+    model, api = make_model([overloaded] * 3, retry_wait=0, max_retries=2)
+    with pytest.raises(LLMError, match="after 3 attempts"):
+        model.complete([{"role": "user", "content": "x"}], tools=[])
+    assert len(api.requests) == 3
 
 
 def test_used_up_daily_quota_is_not_retried(make_model):
     daily = (429, {"error": {"message": "Quota exceeded: GenerateRequestsPerDayPerProjectPerModel-FreeTier"}})
-    model, api = make_model([daily], rate_limit_wait=0)
+    model, api = make_model([daily], retry_wait=0)
     with pytest.raises(LLMError, match="quota"):
         model.complete([{"role": "user", "content": "x"}], tools=[])
     assert len(api.requests) == 1
+
+
+# Gemini's errors are a list. The SDK then keeps the details only in the exception's body.
+def gemini_429(quota_id: str, retry_delay_text: str) -> tuple[int, list]:
+    return (
+        429,
+        [
+            {
+                "error": {
+                    "code": 429,
+                    "status": "RESOURCE_EXHAUSTED",
+                    "details": [
+                        {"@type": "type.googleapis.com/google.rpc.QuotaFailure", "violations": [{"quotaId": quota_id}]},
+                        {"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": retry_delay_text},
+                    ],
+                }
+            }
+        ],
+    )
+
+
+def test_gemini_daily_quota_error_is_recognised(make_model):
+    model, api = make_model([gemini_429("GenerateRequestsPerDayPerProjectPerModel-FreeTier", "40s")], retry_wait=0)
+    with pytest.raises(LLMError, match="Daily quota"):
+        model.complete([{"role": "user", "content": "x"}], tools=[])
+    assert len(api.requests) == 1
+
+
+def test_gemini_retry_delay_is_used(make_model, monkeypatch):
+    waits = []
+    monkeypatch.setattr("helpdesk.llm.time.sleep", waits.append)
+    per_minute = gemini_429("GenerateRequestsPerMinutePerProjectPerModel-FreeTier", "7s")
+    model, _ = make_model([per_minute, OK])
+    assert model.complete([{"role": "user", "content": "x"}], tools=[]).content == "OK"
+    assert waits == [7.0]
+
+
+class _Response:
+    def __init__(self, headers):
+        self.headers = headers
+
+
+class _Error(Exception):
+    def __init__(self, text, headers=None):
+        super().__init__(text)
+        self.response = _Response(headers or {})
+
+
+def test_retry_delay_comes_from_the_server_when_it_sends_one():
+    gemini_body = "Error code: 429 - [{'error': {'details': [{'retryDelay': '23s'}]}}]"
+    assert retry_delay(_Error(gemini_body)) == 23.0
+    assert retry_delay(_Error("Too many requests", {"retry-after": "2"})) == 2.0
+    assert retry_delay(_Error("Too many requests", {"retry-after": "3600"})) == 60.0  # capped
+    assert retry_delay(_Error("Too many requests")) is None

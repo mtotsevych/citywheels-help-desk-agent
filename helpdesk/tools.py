@@ -67,8 +67,9 @@ TOOL_SCHEMAS: list[dict] = [
             "description": (
                 "Calculate how much money the customer gets back if they cancel a booking, using "
                 "the CityWheels cancellation rules. Cancels nothing, only calculates. Always use it "
-                "for refund amounts instead of calculating them yourself. Returns found=false when "
-                "there is no such booking."
+                "for refund amounts instead of calculating them yourself. The 'summary' field states "
+                "every amount and the rule that applies: base your answer on it. Returns found=false "
+                "when there is no such booking."
             ),
             "parameters": {
                 "type": "object",

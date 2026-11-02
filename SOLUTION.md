@@ -44,8 +44,8 @@ python -m eval.run_eval            # the evaluation, writes eval/results.md
 The default is **`gemini-3.5-flash-lite` on the Gemini API free tier**, called through Google's OpenAI-compatible endpoint with the official `openai` Python package.
 
 - Gemini has a free tier, needs no local GPU and supports tool calling. GitHub Models, the other hosted option in the brief, was retired by GitHub on 30 July 2026.
-- Flash-Lite rather than the bigger `gemini-3.8-flash`: the bigger model's free tier was reported to allow only 20 requests per day, and one evaluation run needs about 40.
-- The OpenAI-compatible endpoint means the same code works with other providers by changing three variables in `.env`, for example a local model in Ollama (see `.env.example`). The `openai` package is only the HTTP client: it sends the request, turns the JSON response into objects and retries network errors. The loop, the tools and the prompt are plain code in this repository. I did not use an agent framework: the loop is about 40 lines and easy to test without one.
+- Flash-Lite rather than the bigger `gemini-3.8-flash`: the bigger model's free tier was reported to allow only 20 requests per day, and the last evaluation run made 34 model calls.
+- The OpenAI-compatible endpoint means the same code works with other providers by changing three variables in `.env`, for example a local model in Ollama (see `.env.example`). The `openai` package is only the HTTP client: it sends the request and turns the JSON response into objects. The loop, the tools, the prompt and the retries are plain code in this repository. I did not use an agent framework: the loop is about 40 lines and easy to test without one.
 - One Gemini detail mattered: Gemini 3 models attach "thought signatures" to their tool calls and reject the next request with HTTP 400 if one is missing. So the loop appends the model's message to the history exactly as it came back instead of rebuilding it. `tests/test_llm_client.py` checks this against a local fake of the API.
 
 ## How the agent works
@@ -168,7 +168,7 @@ Places where its output was wrong or needed a change, and how that came out:
 - "Now" is fixed, and times without a time zone are read as Europe/Warsaw.
 - `calculate_refund` trusts the booking data: it does not recompute the price from the price list. For a booking paid with a voucher it cannot know how the deposit was paid, so it repeats the policy sentence "the deposit is refunded the same way it was paid".
 - Correct tool results do not guarantee a correct answer: the model can still phrase something wrongly. The evaluation catches only part of that: string checks, one run per question, and LLMs are not deterministic. The language check only tells English, Polish and German apart, and Markdown in answers is not checked at all.
-- The agent only explains. It cannot cancel or change bookings, and storm cases go to the staff, as the policy says.
+- The agent only explains: it cannot cancel or change bookings. Cases the policy leaves to the staff, such as a storm warning, are meant to go to the staff, but the second evaluation run shows that this does not always happen yet.
 - Free-tier Gemini prompts may be used by Google to improve its products, so this setup is not for real customer data.
 - In a long chat the history grows without limit.
 

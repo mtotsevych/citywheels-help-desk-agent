@@ -151,7 +151,7 @@ What I changed:
 
 ## How I used AI coding assistants
 
-I built this with Claude (Anthropic) working as a coding agent. I gave it the brief and the data; it wrote most of the code, the tests, the evaluation questions and the first version of this document, and it ran the checks described above: a smoke test of the whole CLI against a local fake of the Gemini API, the test suite on Python 3.10 and 3.13 and with both `openai` 2.x and 3.x, and the deliberate-bug check.
+I built this with Claude (Anthropic) working as a coding agent.
 
 Places where its output was wrong or needed a change, and how that came out:
 
